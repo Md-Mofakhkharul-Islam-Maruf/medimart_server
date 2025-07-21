@@ -11,8 +11,6 @@ const generateAccessToken = (payload) => {
   return token;
 };
 
-module.exports = generateAccessToken;
-
 
 // ---------------- verifyToken --------------------
 const verifyToken = (req, res, next) => {
@@ -31,4 +29,22 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-module.exports = verifyToken;
+
+// ---------------- send response ----------------
+// utils/sendResponse.js
+const sendResponse = (res, { success = true, statusCode = 200, message = '', data = null } = {}) => {
+  // console.log(res);
+  
+  res.status(statusCode).json({
+    success,
+    statusCode,
+    message,
+    data,
+  });
+};
+
+module.exports = {
+  generateAccessToken,
+  verifyToken,
+  sendResponse
+};

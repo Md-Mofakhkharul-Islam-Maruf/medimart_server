@@ -1,16 +1,14 @@
 const express = require('express')
 const cors = require('cors')
-const jwt = require('jsonwebtoken');
 const app = express()
-const port = process.env.PORT || 3000
+const port = process.env.PORT || 5000
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { generateAccessToken, sendResponse, verifyToken } = require('./utils');
 require('dotenv').config()
 
 //Middleware
 app.use(cors({ origin: ['http://localhost:5173'] }))
 app.use(express.json())
-
-
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.dysq3yj.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -27,185 +25,112 @@ async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
-
-
-        const userCollections = client.db('car_zone_db').collection('users')
-        const carCollections = client.db('car_zone_db').collection('cars')
-        const bookingCollections = client.db('car_zone_db').collection('bookings')
+        const db = client.db('mediMart');
+        const users = db.collection('users');
+        const products = db.collection('products');
+        const categories = db.collection('categories');
+        const companies = db.collection('companies');
+        const orders = db.collection('orders');
+        const payments = db.collection('payments');
+        const banners = db.collection('banners');
 
         // -------  auth apis---------
         // login
         app.post('/login', async (req, res) => {
             const payload = req.body
-            if (!payload.email) {
-                return res.send({ success: false, message: 'Email is required' })
+            if (!payload.email && !payload.role) {
+                return res.send({ success: false, message: 'Email and role is required' })
             }
 
-            const existUser = await userCollections.findOne(payload)
+            let existUser = await users.findOne({ email: payload.email })
             if (!existUser) {
-                await userCollections.insertOne(payload)
+                await users.insertOne(payload)
+                existUser = await users.findOne({ email: payload.email })
             }
 
             // generate jwt token 
-            const token = jwt.sign({
-                email: payload.email
-            }, 'secret', { expiresIn: '30d' });
-            res.send({ success: true, accessToken: token })
+            const token = generateAccessToken({ _id: existUser._id, email: existUser?.email, role: existUser?.role })
+
+            sendResponse(res, {
+                success: true,
+                message: 'Login successful',
+                data: { accessToken: token }
+            })
         })
-
-
-        //get Booking API
-        app.get('/bookings', async (req, res) => {
-            const token = req.headers.authorization  // recieve the token from frontend
-            if (!token) {
-                return res.send({ success: false, message: 'You are not authorized' })
-            }
-            // verity the token
-            const decodedUser = jwt.verify(token, 'secret');
-
-            const result = await bookingCollections.find({ user: decodedUser?.email }).toArray()
-            res.send(result)
-        })
-
-        //post bookings API
-        app.post('/bookings', async (req, res) => {
-            const token = req.headers.authorization  // recieve the token from frontend
-            if (!token) {
-                return res.send({ success: false, message: 'You are not authorized' })
-            }
-            // verity the token
-            const decodedUser = jwt.verify(token, 'secret');
-
-            const payload = req.body
-            payload.user = decodedUser?.email
-            payload.status = 'pending'
-            const result = await bookingCollections.insertOne(payload);
-
-            // increment car booking count
-            if (result) {
-                await carCollections.findOneAndUpdate({ _id: new ObjectId(payload.car._id) }, { $inc: { bookingCount: 1 } },
-                    { returnDocument: 'after' })
-            }
-            res.send(result);
-        })
-
-        //update booking 
-        app.patch("/bookings/:id", async (req, res) => {
-            const token = req.headers.authorization  // recieve the token from frontend
-            if (!token) {
-                return res.send({ success: false, message: 'You are not authorized' })
-            }
-            // verity the token
-            const decodedUser = jwt.verify(token, 'secret');
-
-            const id = req.params.id;
-            const filter = { _id: new ObjectId(id) }
-            const updatedBooking = req.body;
-            const updatedDoc = {
-                $set: updatedBooking
-            }
-            const result = await bookingCollections.updateOne(filter, updatedDoc)
-            console.log(result);
-            res.send(result)
-        })
-
-
-
-
-        //get cars API
-        app.get('/cars', async (req, res) => {
-            const sortQuery = req.query.sort
-            console.log(sortQuery);
-            const cursor = carCollections.find().sort({ date: sortQuery === 'desc' ? -1 : 1 })
-            const result = await cursor.toArray()
-            res.send(result)
-        })
-
-        //get my cars API
-        app.get('/my-cars', async (req, res) => {
-            const token = req.headers.authorization  // recieve the token from frontend
-            if (!token) {
-                return res.send({ success: false, message: 'You are not authorized' })
-            }
-            // verity the token
-            const decodedUser = jwt.verify(token, 'secret');
-
-            const sortQuery = req.query.sort
-            const cursor = carCollections.find({ user: decodedUser?.email }).sort({ date: sortQuery === 'desc' ? -1 : 1 })
-            const result = await cursor.toArray()
-            res.send(result)
-        })
-
-        //add car API
-        app.post('/cars', async (req, res) => {
-            const token = req.headers.authorization  // recieve the token from frontend
-            if (!token) {
-                return res.send({ success: false, message: 'You are not authorized' })
-            }
-            // verity the token
-            const decodedUser = jwt.verify(token, 'secret');
-
-            const car = req.body
-            car.user = decodedUser?.email
-            car.bookingCount = 0
-            car.date = new Date()
-            const result = await carCollections.insertOne(car);
-            res.send(result);
-        })
-
-        // specific id
-        app.get('/cars/:id', async (req, res) => {
-            const id = req.params.id
-            const query = { _id: new ObjectId(id) }
-            const result = await carCollections.findOne(query)
-            res.send(result)
-        })
-
-        //update car 
-        app.put("/cars/:id", async (req, res) => {
-            const id = req.params.id;
-            const filter = { _id: new ObjectId(id) }
-            const option = { upsert: true };
-            const updatedCar = req.body;
-            const updatedDoc = {
-                $set: updatedCar
-            }
-            const result = await carCollections.updateOne(filter, updatedDoc, option)
-            res.send(result)
-        })
-
-        //Delete car 
-        app.delete("/cars/:id", async (req, res) => {
-            const id = req.params.id;
-            const query = { _id: new ObjectId(id) }
-            const result = await carCollections.deleteOne(query)
-            res.send(result);
-        })
-
-
-        // GET /cars/recent
-        app.get('/cars', async (req, res) => {
-            try {
-                const cars = await carCollections.find().sort({ createdAt: -1 }).toArray(); // ⬅ Sort newest first
-                res.send(cars);
-            } catch (error) {
-                res.status(500).send({ message: 'Error fetching cars', error });
-            }
-        });
 
         // get profile
-        app.get('/profile', async (req, res) => {
-            const token = req.headers.authorization  // recieve the token from frontend
-            if (!token) {
-                return res.send({ success: false, message: 'You are not authorized' })
-            }
-            // verity the token
-            const decodedUser = jwt.verify(token, 'secret');
+        app.get('/profile', verifyToken, async (req, res) => {
+            const result = await users.findOne({ email: req.user.email })
 
-            const result = await carCollections.findOne({email: decodedUser.email})
-            res.send(result)
+            sendResponse(res, {
+                success: true,
+                message: 'Retrieved profile successful',
+                data: result
+            })
         })
 
+        // update user
+        app.patch('/users/:id', verifyToken, async (req, res) => {
+            const result = await users.findOneAndUpdate({ _id: new ObjectId(req.params.id) }, { $set: req.body }, { returnDocument: 'after' })
+
+            sendResponse(res, {
+                success: true,
+                message: 'User retrieved successful',
+                data: result
+            })
+        })
+
+        // create category
+        app.post('/categories', verifyToken, async (req, res) => {
+            // check if the category already exist
+            const isExist = await categories.findOne({ name: req.body.name })
+            if (isExist) {
+                return sendResponse(res, {
+                    success: false,
+                    statusCode: 403,
+                    message: "Already exists"
+                })
+            }
+
+            const result = await categories.insertOne(req.body, { returnDocument: 'after' })
+
+            sendResponse(res, {
+                success: true,
+                message: 'Created category successful',
+                data: result
+            })
+        })
+
+        // delete category
+        app.delete('/categories/:id', verifyToken, async (req, res) => {
+            const isExist = await categories.findOne({_id: new ObjectId(req.params.id)})
+            if(!isExist){
+                return sendResponse(res, {
+                    success: false,
+                    statusCode: 404,
+                    message: 'Category not exist'
+                })
+            }
+
+            const result = await categories.deleteOne({_id: isExist._id}, {returnDocument: 'after'})
+
+            sendResponse(res, {
+                success: true,
+                message: 'Deleted successful',
+                data: result
+            })
+        })
+
+        // delete category
+        app.get('/categories', async (req, res) => {
+            const result = await categories.find({}).toArray()
+
+            sendResponse(res, {
+                success: true,
+                message: 'Retrived successful',
+                data: result
+            })
+        })
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
@@ -217,12 +142,10 @@ async function run() {
 }
 run().catch(console.dir);
 
-
-
 app.get('/', (req, res) => {
-    res.send('Car Zone server running')
+    res.send(res.send(`<h1 style="text-align: center; margin-top: 20%;">MediMart Server is Running 🚀</h1>`))
 })
 
 app.listen(port, () => {
-    console.log(`Car zone server is running on port ${port}`)
+    console.log(`Medimart server is running on port ${port}`)
 })
