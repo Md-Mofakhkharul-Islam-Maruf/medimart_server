@@ -29,7 +29,6 @@ async function run() {
         const users = db.collection('users');
         const products = db.collection('products');
         const categories = db.collection('categories');
-        const companies = db.collection('companies');
         const orders = db.collection('orders');
         const payments = db.collection('payments');
         const banners = db.collection('banners');
@@ -190,6 +189,19 @@ async function run() {
         app.get("/products", verifyToken, async (req, res) => {
             const sellerEmail = req.query.email;
             const query = sellerEmail ? { sellerEmail } : {};
+
+            const result = await products.find(query).toArray();
+
+            sendResponse(res, {
+                success: true,
+                message: "Medicines fetched successfully",
+                data: result,
+            });
+        });
+
+        // Get all medicines by category
+        app.get("/products/category/:category", verifyToken, async (req, res) => {
+            const query = {"category._id": req.params.category} || {};
 
             const result = await products.find(query).toArray();
 
@@ -417,10 +429,10 @@ async function run() {
             }
         });
 
-          // get user payments
+        // get user payments
         app.get("/payments/my-payments", verifyToken, async (req, res) => {
             try {
-                const result = await payments.find({"user._id": req.user?._id}).toArray();
+                const result = await payments.find({ "user._id": req.user?._id }).toArray();
 
                 sendResponse(res, {
                     success: true,
@@ -466,7 +478,7 @@ async function run() {
         // update ad-banner
         app.patch("/banners/:id", verifyToken, async (req, res) => {
             try {
-                const result = await banners.findOneAndUpdate({_id: new ObjectId(req.params.id) }, {$set: req.body}, { returnDocument: 'after' });
+                const result = await banners.findOneAndUpdate({ _id: new ObjectId(req.params.id) }, { $set: req.body }, { returnDocument: 'after' });
 
                 sendResponse(res, {
                     success: true,
@@ -502,7 +514,7 @@ async function run() {
         // get seller ad-banner
         app.get("/banners/my-banners", verifyToken, async (req, res) => {
             try {
-                const result = await banners.find({"seller._id": req.user?._id}).toArray()
+                const result = await banners.find({ "seller._id": req.user?._id }).toArray()
 
                 sendResponse(res, {
                     success: true,
@@ -520,17 +532,17 @@ async function run() {
         // delete ad-banner
         app.delete("/banners/:id", verifyToken, async (req, res) => {
             // check if exist
-            const isExist = await banners.findOne({_id: new ObjectId(req.params.id)})
-            if(!isExist){
+            const isExist = await banners.findOne({ _id: new ObjectId(req.params.id) })
+            if (!isExist) {
                 sendResponse(res, {
                     success: false,
                     statusCode: 401,
                     message: "Ad-banner is not exist",
                 });
             }
-            
+
             try {
-                const result = await banners.findOneAndDelete({_id: new ObjectId(req.params.id)})
+                const result = await banners.findOneAndDelete({ _id: new ObjectId(req.params.id) })
 
                 sendResponse(res, {
                     success: true,
