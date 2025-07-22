@@ -103,8 +103,8 @@ async function run() {
 
         // delete category
         app.delete('/categories/:id', verifyToken, async (req, res) => {
-            const isExist = await categories.findOne({_id: new ObjectId(req.params.id)})
-            if(!isExist){
+            const isExist = await categories.findOne({ _id: new ObjectId(req.params.id) })
+            if (!isExist) {
                 return sendResponse(res, {
                     success: false,
                     statusCode: 404,
@@ -112,7 +112,7 @@ async function run() {
                 })
             }
 
-            const result = await categories.deleteOne({_id: isExist._id}, {returnDocument: 'after'})
+            const result = await categories.deleteOne({ _id: isExist._id }, { returnDocument: 'after' })
 
             sendResponse(res, {
                 success: true,
@@ -131,6 +131,291 @@ async function run() {
                 data: result
             })
         })
+
+
+
+        // Add a new medicine
+        app.post("/products", verifyToken, async (req, res) => {
+            const {
+                name,
+                genericName,
+                description,
+                image,
+                category,
+                company,
+                massUnit,
+                price,
+                discount = 0,
+            } = req.body;
+
+            // validation check
+            if (
+                !name ||
+                !genericName ||
+                !price ||
+                !massUnit ||
+                !category ||
+                !company
+            ) {
+                return sendResponse(res, {
+                    success: false,
+                    statusCode: 400,
+                    message: "Required fields are missing",
+                });
+            }
+
+            const newMedicine = {
+                name,
+                genericName,
+                description,
+                image,
+                category,
+                company,
+                massUnit,
+                price,
+                discount,
+                createdAt: new Date(),
+            };
+
+            const result = await products.insertOne(newMedicine);
+
+            sendResponse(res, {
+                success: true,
+                message: "Medicine added successfully",
+                data: result,
+            });
+        });
+
+        // Get all medicines
+        app.get("/products", verifyToken, async (req, res) => {
+            const sellerEmail = req.query.email;
+            const query = sellerEmail ? { sellerEmail } : {};
+
+            const result = await products.find(query).toArray();
+
+            sendResponse(res, {
+                success: true,
+                message: "Medicines fetched successfully",
+                data: result,
+            });
+        });
+
+        // Get a single medicine by ID
+        app.get("/products/:id", async (req, res) => {
+            const { id } = req.params;
+
+            try {
+                const result = await products.findOne({ _id: new ObjectId(id) });
+
+                if (!result) {
+                    return sendResponse(res, {
+                        success: false,
+                        statusCode: 404,
+                        message: "Product not found",
+                    });
+                }
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Product fetched successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    statusCode: 500,
+                    message: "Something went wrong",
+                });
+            }
+        });
+
+        // Update a medicine
+        app.patch("/products/:id", async (req, res) => {
+            const { id } = req.params;
+            const updateData = req.body;
+
+            try {
+                const result = await products.findOneAndUpdate(
+                    { _id: new ObjectId(id) },
+                    { $set: updateData },
+                    { returnDocument: "after" }
+                );
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Product updated successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    statusCode: 500,
+                    message: "Something went wrong",
+                });
+            }
+        });
+
+        // Delete a medicine
+        app.delete("/products/:id", async (req, res) => {
+            const { id } = req.params;
+
+            try {
+                const isExist = await products.findOne({ _id: new ObjectId(id) });
+
+                if (!isExist) {
+                    return sendResponse(res, {
+                        success: false,
+                        statusCode: 404,
+                        message: "Product not found",
+                    });
+                }
+
+                const result = await products.deleteOne({ _id: isExist._id });
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Product deleted successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    statusCode: 500,
+                    message: "Something went wrong",
+                });
+            }
+        });
+
+
+
+        // ----------------- Order -------------------
+        // create order
+        app.post("/orders", verifyToken, async (req, res) => {
+            const { iat, exp, ...user } = req.user
+            const payload = {
+                ...req.body,
+                user: user,
+                status: 'pending',
+                createdAt: new Date(),
+            };
+
+            try {
+                const result = await orders.insertOne(payload, { returnDocument: 'after' });
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Order added successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to created order",
+                });
+            }
+        });
+
+        // update order
+        app.patch("/orders/:id", verifyToken, async (req, res) => {
+            try {
+                const result = await orders.findOneAndUpdate({ _id: new ObjectId(req.params.id) }, { $set: req.body }, { returnDocument: 'after' })
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Order updated successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to update order",
+                });
+            }
+        });
+
+        // get my orders
+        app.get("/orders", verifyToken, async (req, res) => {
+
+            try {
+                const result = await orders.find({ 'user._id': req.user?._id }).toArray();
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Order added successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to created order",
+                });
+            }
+        });
+
+
+        // ---------------- Payment ------------------
+        // create payment
+        app.post("/payments", verifyToken, async (req, res) => {
+            const { iat, exp, ...user } = req.user
+            const payload = {
+                ...req.body,
+                user: user,
+                status: 'pending',
+                createdAt: new Date(),
+            };
+
+            try {
+                const result = await payments.insertOne(payload, { returnDocument: 'after' });
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Payment added successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to created payment",
+                });
+            }
+        });
+
+        // update payment
+        app.patch("/payments/:id", verifyToken, async (req, res) => {
+            try {
+                const result = await payments.findOneAndUpdate({ _id: new ObjectId(req.params.id) }, { $set: req.body }, { returnDocument: 'after' });
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Payment updated successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to update payment",
+                });
+            }
+        });
+
+        app.get("/payments", verifyToken, async (req, res) => {
+            try {
+                const result = await payments.find().toArray();
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Payments fetched successfully",
+                    data: result,
+                });
+            } catch (error) {
+                console.error("Payment fetch error:", error);
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to get payments",
+                });
+            }
+        });
+
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
