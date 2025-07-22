@@ -398,6 +398,7 @@ async function run() {
             }
         });
 
+        // get all payments
         app.get("/payments", verifyToken, async (req, res) => {
             try {
                 const result = await payments.find().toArray();
@@ -412,6 +413,134 @@ async function run() {
                 sendResponse(res, {
                     success: false,
                     message: "Failed to get payments",
+                });
+            }
+        });
+
+          // get user payments
+        app.get("/payments/my-payments", verifyToken, async (req, res) => {
+            try {
+                const result = await payments.find({"user._id": req.user?._id}).toArray();
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Payments fetched successfully",
+                    data: result,
+                });
+            } catch (error) {
+                console.error("Payment fetch error:", error);
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to get payments",
+                });
+            }
+        });
+
+        // ----------------- ad banner --------------------
+        // create ad-banner
+        app.post("/banners", verifyToken, async (req, res) => {
+            const { iat, exp, ...user } = req.user
+            const payload = {
+                ...req.body,
+                seller: user,
+                isActive: true,
+                createdAt: new Date(),
+            };
+
+            try {
+                const result = await banners.insertOne(payload, { returnDocument: 'after' });
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Ad-banner added successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to created Ad-banner",
+                });
+            }
+        });
+
+        // update ad-banner
+        app.patch("/banners/:id", verifyToken, async (req, res) => {
+            try {
+                const result = await banners.findOneAndUpdate({_id: new ObjectId(req.params.id) }, {$set: req.body}, { returnDocument: 'after' });
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Ad-banner updated successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to update Ad-banner",
+                });
+            }
+        });
+
+        // get all ad-banner
+        app.get("/banners", verifyToken, async (req, res) => {
+            try {
+                const result = await banners.find().toArray()
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Ad-banner get successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to get Ad-banner",
+                });
+            }
+        });
+
+        // get seller ad-banner
+        app.get("/banners/my-banners", verifyToken, async (req, res) => {
+            try {
+                const result = await banners.find({"seller._id": req.user?._id}).toArray()
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Ad-banner get successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to get Ad-banner",
+                });
+            }
+        });
+
+        // delete ad-banner
+        app.delete("/banners/:id", verifyToken, async (req, res) => {
+            // check if exist
+            const isExist = await banners.findOne({_id: new ObjectId(req.params.id)})
+            if(!isExist){
+                sendResponse(res, {
+                    success: false,
+                    statusCode: 401,
+                    message: "Ad-banner is not exist",
+                });
+            }
+            
+            try {
+                const result = await banners.findOneAndDelete({_id: new ObjectId(req.params.id)})
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Ad-banner deleted successfully",
+                    data: result,
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to deleted Ad-banner",
                 });
             }
         });
