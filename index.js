@@ -201,7 +201,7 @@ async function run() {
 
         // Get all medicines by category
         app.get("/products/category/:category", verifyToken, async (req, res) => {
-            const query = {"category._id": req.params.category} || {};
+            const query = { "category._id": req.params.category } || {};
 
             const result = await products.find(query).toArray();
 
@@ -553,6 +553,52 @@ async function run() {
                 sendResponse(res, {
                     success: false,
                     message: "Failed to deleted Ad-banner",
+                });
+            }
+        });
+
+
+        // ------------------ admin dashboard -------------------
+        // get overview
+        app.get("/overview/admin", verifyToken, async (req, res) => {
+            try {
+                const result = await payments.aggregate([
+                    {
+                        $group: {
+                            _id: null,
+                            totalAmount: { $sum: "$amount" },
+                            paidAmount: {
+                                $sum: {
+                                    $cond: [{ $eq: ["$status", "paid"] }, "$amount", 0]
+                                }
+                            },
+                            pendingAmount: {
+                                $sum: {
+                                    $cond: [{ $eq: ["$status", "pending"] }, "$amount", 0]
+                                }
+                            }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 0,
+                            totalAmount: 1,
+                            paidAmount: 1,
+                            pendingAmount: 1
+                        }
+                    }
+                ]).toArray();
+
+
+                sendResponse(res, {
+                    success: true,
+                    message: "Ad-banner get successfully",
+                    data: result?.[0],
+                });
+            } catch (error) {
+                sendResponse(res, {
+                    success: false,
+                    message: "Failed to get Ad-banner",
                 });
             }
         });
