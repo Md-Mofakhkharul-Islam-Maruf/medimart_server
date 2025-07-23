@@ -53,7 +53,7 @@ async function run() {
             sendResponse(res, {
                 success: true,
                 message: 'Login successful',
-                data: { accessToken: token }
+                data: { accessToken: token, role: existUser.role }
             })
         })
 
@@ -557,9 +557,8 @@ async function run() {
             }
         });
 
-
         // ------------------ admin dashboard -------------------
-        // get overview
+        // get overview for admin
         app.get("/overview/admin", verifyToken, async (req, res) => {
             try {
                 const result = await payments.aggregate([
